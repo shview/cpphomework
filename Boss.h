@@ -1,27 +1,45 @@
 #pragma once
-#include <SFML/Graphics.hpp>
+#include "Global.h"
 #include <vector>
-#include <cstdint>
 #include <optional>
-#include <string>
-
-enum class Difficulty { Easy, Normal, Hard };
-enum class Level { Level1, Level2 };
 
 enum class BossState { Spawning, PhaseTransition, Normal, Hit, Dying, Dead };
-
-struct AnimInfo {
-    const sf::Texture* tex = nullptr;
-    int cols = 1;
-    int rows = 1;
-    int totalFrames = 1;
-    float fps = 12.f;
-};
 
 struct Bullet {
     sf::Sprite sprite;
     sf::Vector2f velocity;
-    Bullet(const sf::Texture& tex, sf::Vector2f vel) : sprite(tex), velocity(vel) {}
+    int type; // 0: 普通, 10: Honest专属, 11: Hime专属, 12: 泡泡
+    Bullet(const sf::Texture& tex, sf::Vector2f vel, int t = 0) : sprite(tex), velocity(vel), type(t) {}
+};
+
+// 新增：攻击预警区域
+struct WarningArea {
+    sf::RectangleShape shape;
+    float timer;
+    float maxTime;
+    int bulletType;
+    sf::Vector2f startPos;
+    sf::Vector2f velocity;
+    float rotation;
+};
+
+struct BossConfig {
+    int bossId; // 1: Honest, 2: Hime
+    const sf::Texture* stayTex;
+    const sf::Texture* castTex;
+    const sf::Texture* sufferTex;
+    const sf::Texture* endTex;
+    const sf::Texture* bgObjectTex;
+
+    // 特殊攻击贴图
+    const sf::Texture* texHonestSpecial;
+    const sf::Texture* texHimeSpecial;
+    const sf::Texture* texBubble;
+
+    AnimInfo animStay;
+    AnimInfo animCast;
+    AnimInfo animSuffer;
+    AnimInfo animEnd;
 };
 
 class Boss {
@@ -37,17 +55,13 @@ private:
     const sf::Texture* heartOutlineTex;
     const sf::Texture* heartFillTex;
 
+    std::optional<sf::Sprite> bgObjectSprite;
     std::optional<sf::Sprite> bossSprite;
     std::optional<sf::Sprite> heartOutlineSprite;
     std::optional<sf::Sprite> heartFillSprite;
-
-    // 修复 error C2512：改为延迟初始化
     std::optional<sf::Text> pctText;
 
-    AnimInfo animStay;
-    AnimInfo animCast;
-    AnimInfo animSuffer;
-
+    BossConfig config;
     AnimInfo currentAnim;
     int currentFrame;
     float animTimer;
@@ -56,11 +70,15 @@ private:
     float fireTimer;
     float patternTimer;
 
+    // 新增：特殊攻击计时器
+    float specialTimer;
+    float bubbleTimer;
+
     BossState state;
     float stateTimer;
-    sf::Vector2f baseScale;
 
     std::vector<Bullet> bullets;
+    std::vector<WarningArea> warnings; // 预警线容器
 
     void updateBullets(float dt);
     void setAnimation(const AnimInfo& info);
@@ -68,12 +86,10 @@ private:
 
 public:
     Boss();
-
-    void init(Difficulty diff,
-        const sf::Font& font,
+    void init(Difficulty diff, Level lvl, const sf::Font& font,
         const sf::Texture* heartOut, const sf::Texture* heartFill,
-        const sf::Texture* stayTex, const sf::Texture* castTex, const sf::Texture* sufferTex,
-        const sf::Texture* bulletTex01, const sf::Texture* bulletTex02);
+        const sf::Texture* bulletTex01, const sf::Texture* bulletTex02,
+        const BossConfig& cfg);
 
     void update(float dt, Difficulty diff, Level lvl);
     void fireBullet(float angleDeg, float speed, int bulletType);
@@ -86,8 +102,8 @@ public:
     std::vector<Bullet>& getBullets() { return bullets; }
     int getCurrentPhase() const { return currentPhase; }
 
-    bool isDead() const { return state == BossState::Dead; }
     bool isDying() const { return state == BossState::Dying; }
+    bool isDead() const { return state == BossState::Dead; }
 
     void takeDamage(float amount);
 };
