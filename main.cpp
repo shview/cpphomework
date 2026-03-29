@@ -269,29 +269,28 @@ int main() {
     sf::RenderWindow window(sf::VideoMode({ 800, 600 }), "Last Command - Modded");
     window.setFramerateLimit(60);
 
+    // ================== 在 main 函数中，修改加载资源的部分 ==================
     sf::Font font;
-    font.openFromFile("arial.ttf");
+    (void)font.openFromFile("arial.ttf"); // 加上 (void) 消除警告
 
-    // --- 加载占位的 Boss 贴图 (后续也可替换为 png) ---
-    sf::RenderTexture bossRT;
-    bossRT.resize({ 70, 70 });
-    sf::CircleShape bossShape(35.f);
-    bossShape.setFillColor(sf::Color::White);
-    bossRT.clear(sf::Color::Transparent);
-    bossRT.draw(bossShape);
-    bossRT.display();
-    const sf::Texture& bossTexture = bossRT.getTexture();
-
-    // --- 加载所有真正的 PNG 贴图 ---
     sf::Texture bulletTex01, bulletTex02;
-    if (!bulletTex01.loadFromFile("assets/bulletBoss01.png")) std::cout << "Missing assets/bulletBoss01.png\n";
-    if (!bulletTex02.loadFromFile("assets/bulletBoss02.png")) std::cout << "Missing assets/bulletBoss02.png\n";
+    (void)bulletTex01.loadFromFile("assets/bulletBoss01.png");
+    (void)bulletTex02.loadFromFile("assets/bulletBoss02.png");
 
     sf::Texture snakeHeadTex, snakeBodyTex;
-    if (!snakeHeadTex.loadFromFile("assets/snakeSkinHead.png")) std::cout << "Missing assets/snakeSkinHead.png\n";
-    if (!snakeBodyTex.loadFromFile("assets/snakeSkinBody.png")) std::cout << "Missing assets/snakeSkinBody.png\n";
+    (void)snakeHeadTex.loadFromFile("assets/snakeSkinHead.png");
+    (void)snakeBodyTex.loadFromFile("assets/snakeSkinBody.png");
 
-    // 初始化玩家并绑定贴图
+    sf::Texture bossStayTex, bossCastTex, bossSufferTex;
+    (void)bossStayTex.loadFromFile("assets/BossHonest_Stay.png");
+    (void)bossCastTex.loadFromFile("assets/BossHonest_Cast01.png");
+    (void)bossSufferTex.loadFromFile("assets/BossHonest_Suffer.png");
+
+    sf::Texture heartOutTex, heartFillTex;
+    (void)heartOutTex.loadFromFile("assets/levelHeart20x22OutlineForHonest.png");
+    (void)heartFillTex.loadFromFile("assets/levelHeart20x22.png");
+    // =======================================================================
+
     Snake player;
     player.initSprites(snakeHeadTex, snakeBodyTex);
 
@@ -314,6 +313,7 @@ int main() {
             if (event->is<sf::Event::Closed>()) window.close();
 
             if (const auto* keyEvent = event->getIf<sf::Event::KeyPressed>()) {
+                // ... 菜单逻辑保持不变 ...
                 if (state == GameState::Menu) {
                     if (keyEvent->code == sf::Keyboard::Key::Up) menuSelection = 0;
                     if (keyEvent->code == sf::Keyboard::Key::Down) menuSelection = 1;
@@ -341,8 +341,11 @@ int main() {
                         else currentDiff = Difficulty::Hard;
 
                         player.reset();
-                        // 初始化 Boss，传入两张子弹贴图
-                        boss.init(currentDiff, &bossTexture, &bulletTex01, &bulletTex02);
+                        // 初始化 Boss，注入所有贴图资源
+                        boss.init(currentDiff, font, &heartOutTex, &heartFillTex,
+                            &bossStayTex, &bossCastTex, &bossSufferTex,
+                            &bulletTex01, &bulletTex02);
+
                         dataPoints.clear();
                         shockwaves.clear();
                         stats = GameStats();
@@ -354,12 +357,18 @@ int main() {
                         player.energy -= 35.f;
                         shockwaves.push_back(Shockwave(player.headPos));
                     }
-                    if (keyEvent->code == sf::Keyboard::Key::LShift && player.dashCharges > 0 && !player.isDashing) {
+                    // 冲刺支持 LShift 或 F 键
+                    if ((keyEvent->code == sf::Keyboard::Key::LShift || keyEvent->code == sf::Keyboard::Key::F)
+                        && player.dashCharges > 0 && !player.isDashing) {
                         player.dashCharges--;
                         player.isDashing = true;
                         player.dashTimer = 0.15f;
                         player.isInvincible = true;
                         player.invTimer = 0.40f;
+                    }
+                    // F1 一键秒杀当前阶段 (测试用)
+                    if (keyEvent->code == sf::Keyboard::Key::F1) {
+                        boss.takeDamage(boss.getMaxHealth());
                     }
                 }
                 else if (state == GameState::GameOver || state == GameState::Win) {
@@ -389,47 +398,38 @@ int main() {
                 }
             }
 
+            // --- 玩家与 Boss 核心碰撞更新 --- (使用之前的 C++20 erase_if)
             player.update(dt, window.getSize(), boss);
             boss.update(dt, currentDiff, currentLevel);
-
             stats.maxLength = std::max(stats.maxLength, player.bodyCount);
 
-            // --- 1. 更新并清理失效的冲击波 ---
             for (auto& sw : shockwaves) sw.update(dt);
-            (void)std::erase_if(shockwaves, [](const Shockwave& sw) {
-                return !sw.isAlive;
-                });
+            (void)std::erase_if(shockwaves, [](const Shockwave& sw) { return !sw.isAlive; });
 
-            // --- 2. 玩家吃数据点 (食物) ---
             (void)std::erase_if(dataPoints, [&](const DataPoint& dp) {
                 if (std::hypot(player.headPos.x - dp.shape.getPosition().x, player.headPos.y - dp.shape.getPosition().y) < 20.f) {
                     if (player.bodyCount < player.maxBody) player.bodyCount++;
-                    return true; // 返回 true 表示将其从 vector 中删除
+                    return true;
                 }
                 return false;
                 });
 
-            // --- 3. 冲击波消除 Boss 子弹 ---
             std::vector<Bullet>& bossBullets = boss.getBullets();
-            // 修复 C2065: 补回遍历 shockwaves 的外层循环
             for (const auto& sw : shockwaves) {
                 (void)std::erase_if(bossBullets, [&](const Bullet& b) {
                     return std::hypot(sw.shape.getPosition().x - b.sprite.getPosition().x, sw.shape.getPosition().y - b.sprite.getPosition().y) < sw.radius;
                     });
             }
 
-            // --- 4. Boss 子弹击中玩家 ---
             if (!player.isInvincible) {
                 for (auto it = bossBullets.begin(); it != bossBullets.end(); ) {
                     if (std::hypot(player.headPos.x - it->sprite.getPosition().x, player.headPos.y - it->sprite.getPosition().y) < 12.f) {
                         player.takeDamage();
-                        shockwaves.push_back(Shockwave(player.headPos)); // 被击中触发一次保命冲击波
-                        it = bossBullets.erase(it); // 只有这里还需要用迭代器，因为我们要用 break 阻断瞬间多次受伤
+                        shockwaves.push_back(Shockwave(player.headPos));
+                        it = bossBullets.erase(it);
                         break;
                     }
-                    else {
-                        ++it;
-                    }
+                    else ++it;
                 }
             }
 
@@ -445,6 +445,8 @@ int main() {
             for (auto& sw : shockwaves) window.draw(sw.shape);
             player.draw(window);
 
+            // --- UI 渲染 ---
+            // 1. 玩家血量 (绿色方块)
             for (int i = 0; i < player.health; ++i) {
                 sf::RectangleShape hb({ 16.f, 16.f });
                 hb.setPosition({ 20.f + i * 22.f, 20.f });
@@ -452,29 +454,63 @@ int main() {
                 window.draw(hb);
             }
 
-            for (int i = 0; i < player.dashCharges; ++i) {
+            // 2. 冲刺次数指示灯 (拥有次数为亮黄，空缺为暗黄)
+            for (int i = 0; i < 2; ++i) {
                 sf::CircleShape dashDot(6.f);
                 dashDot.setPosition({ 20.f + i * 16.f, 45.f });
-                dashDot.setFillColor(sf::Color::Yellow);
+                if (i < player.dashCharges) {
+                    dashDot.setFillColor(sf::Color::Yellow);
+                }
+                else {
+                    dashDot.setFillColor(sf::Color(100, 100, 0, 150)); // 暗色底槽
+                }
                 window.draw(dashDot);
             }
 
+            // 3. 冲刺充能进度条 (只有次数不满 2 时显示)
+            if (player.dashCharges < 2) {
+                sf::RectangleShape dashBarBG({ 30.f, 4.f });
+                dashBarBG.setPosition({ 20.f, 59.f });
+                dashBarBG.setFillColor(sf::Color(50, 50, 0));
+                window.draw(dashBarBG);
+
+                sf::RectangleShape dashBar({ 30.f * (player.dashCooldown / 2.5f), 4.f });
+                dashBar.setPosition({ 20.f, 59.f });
+                dashBar.setFillColor(sf::Color::Yellow);
+                window.draw(dashBar);
+            }
+
+            // 4. Q技能能量条 (青色)
             sf::RectangleShape eb({ 100.f * (player.energy / 100.f), 6.f });
-            eb.setPosition({ 20.f, 65.f });
+            eb.setPosition({ 20.f, 67.f }); // 位置稍微下移，给冲刺条留空间
             eb.setFillColor(sf::Color::Cyan);
             window.draw(eb);
 
-            sf::RectangleShape bhpBG({ 300.f, 12.f });
-            bhpBG.setPosition({ 480.f, 20.f });
-            bhpBG.setFillColor(sf::Color(50, 0, 0));
-            window.draw(bhpBG);
+            // --- 新增：Boss 右上角多阶段进度条 ---
+            sf::Text phaseText(font, "PHASE", 14);
+            phaseText.setPosition({ 620.f, 20.f });
+            phaseText.setFillColor(sf::Color::White);
+            window.draw(phaseText);
 
-            sf::RectangleShape bhp({ 300.f * std::max(0.f, boss.getHealth() / boss.getMaxHealth()), 12.f });
-            bhp.setPosition({ 480.f, 20.f });
-            bhp.setFillColor(sf::Color::Red);
-            window.draw(bhp);
+            int currentP = boss.getCurrentPhase();
+            for (int i = 0; i < 3; ++i) {
+                sf::RectangleShape pb({ 30.f, 12.f });
+                pb.setPosition({ 680.f + i * 35.f, 22.f });
+
+                // 如果是已经打过的阶段标红，当前阶段或未来阶段标暗灰
+                if (i <= currentP) pb.setFillColor(sf::Color::Red);
+                else pb.setFillColor(sf::Color(50, 0, 0));
+
+                // 给当前正在打的阶段加个高亮边框提示
+                if (i == currentP) {
+                    pb.setOutlineThickness(2.f);
+                    pb.setOutlineColor(sf::Color::Yellow);
+                }
+                window.draw(pb);
+            }
         }
         else {
+            // ... 非游玩菜单 UI 代码保持不变 ...
             sf::Text title(font, "", 40);
             sf::Text opt1(font, "", 24);
             sf::Text opt2(font, "", 24);

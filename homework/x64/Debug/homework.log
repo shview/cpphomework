@@ -1,4 +1,2 @@
 ﻿  main.cpp
-C:\Users\s\Desktop\h1\homework\main.cpp(273,22): warning C4834: 放弃具有 [[nodiscard]] 属性的函数的返回值
-C:\Users\s\Desktop\h1\homework\main.cpp(277,18): warning C4834: 放弃具有 [[nodiscard]] 属性的函数的返回值
   homework.vcxproj -> C:\Users\s\Desktop\h1\homework\x64\Debug\homework.exe
