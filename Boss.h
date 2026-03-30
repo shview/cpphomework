@@ -8,11 +8,11 @@ enum class BossState { Spawning, PhaseTransition, Normal, Hit, Dying, Dead };
 struct Bullet {
     sf::Sprite sprite;
     sf::Vector2f velocity;
-    int type; // 0: 普通, 10: Honest专属, 11: Hime专属, 12: 泡泡
+    int type;
     Bullet(const sf::Texture& tex, sf::Vector2f vel, int t = 0) : sprite(tex), velocity(vel), type(t) {}
 };
 
-// 新增：攻击预警区域
+// 修正 4：恢复丢失的预警区和特攻所需变量
 struct WarningArea {
     sf::RectangleShape shape;
     float timer;
@@ -24,14 +24,13 @@ struct WarningArea {
 };
 
 struct BossConfig {
-    int bossId; // 1: Honest, 2: Hime
+    int bossId;
     const sf::Texture* stayTex;
     const sf::Texture* castTex;
     const sf::Texture* sufferTex;
     const sf::Texture* endTex;
     const sf::Texture* bgObjectTex;
 
-    // 特殊攻击贴图
     const sf::Texture* texHonestSpecial;
     const sf::Texture* texHimeSpecial;
     const sf::Texture* texBubble;
@@ -40,11 +39,17 @@ struct BossConfig {
     AnimInfo animCast;
     AnimInfo animSuffer;
     AnimInfo animEnd;
+
+    float startPosX = 400.f;
+    float startPosY = 200.f;
+    int forceBulletType = -1;
 };
 
 class Boss {
 private:
     sf::Vector2f pos;
+    float basePosX;
+    float basePosY;
     float health;
     float maxHealth;
     float hitboxRadius;
@@ -69,8 +74,6 @@ private:
     float rotationAngle;
     float fireTimer;
     float patternTimer;
-
-    // 新增：特殊攻击计时器
     float specialTimer;
     float bubbleTimer;
 
@@ -78,11 +81,12 @@ private:
     float stateTimer;
 
     std::vector<Bullet> bullets;
-    std::vector<WarningArea> warnings; // 预警线容器
+    std::vector<WarningArea> warnings;
 
     void updateBullets(float dt);
     void setAnimation(const AnimInfo& info);
     void updateSpriteRect();
+    void spawnWarning(sf::Vector2f startPos, sf::Vector2f size, sf::Vector2f vel, float rot, float maxTime, int type);
 
 public:
     Boss();
@@ -98,12 +102,19 @@ public:
     float getHealth() const { return health; }
     float getMaxHealth() const { return maxHealth; }
     sf::Vector2f getPosition() const { return pos; }
+
+    float getBasePosX() const { return basePosX; }
+    float getBasePosY() const { return basePosY; }
+    void setBasePosX(float x) { basePosX = x; pos.x = x; }
+    void setBasePosY(float y) { basePosY = y; pos.y = y; }
+
+    void setPosition(sf::Vector2f p) { pos = p; basePosX = p.x; basePosY = p.y; }
+    void kill() { health = 0.f; state = BossState::Dead; bullets.clear(); warnings.clear(); }
     float getHitboxRadius() const { return hitboxRadius; }
     std::vector<Bullet>& getBullets() { return bullets; }
     int getCurrentPhase() const { return currentPhase; }
 
     bool isDying() const { return state == BossState::Dying; }
     bool isDead() const { return state == BossState::Dead; }
-
     void takeDamage(float amount);
 };

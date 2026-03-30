@@ -80,18 +80,33 @@ private:
     sf::Texture heartOutTex, heartFillTex;
     sf::Texture boss1Stay, boss1Cast, boss1Suffer;
     sf::Texture boss2Stay, boss2Cast, boss2Suffer, boss2End, boss2BG;
-
-    // 新增：特有攻击贴图资源
     sf::Texture honestSpecialTex, himeSpecialTex, bubbleTex;
+
+    sf::Texture previewHimeTex, previewHonestTex;
+    std::optional<sf::Text> recommendText;
 
     Snake player;
     Boss boss;
+    Boss boss2;
+
     std::vector<DataPoint> dataPoints;
     std::vector<Shockwave> shockwaves;
     std::vector<SnakeProjectile> snakeProjectiles;
 
     float spawnTimer;
     sf::Clock clock;
+
+    // --- 主页预览动画与双 Boss 换位变量 ---
+    float honestPreviewTimer = 0.f;
+    int honestPreviewFrame = 0;
+    float himePreviewTimer = 0.f;
+    int himePreviewFrame = 0;
+
+    float bossSwapTimer = 0.f;
+    bool isSwapping = false;
+    float swapProgress = 0.f;
+    sf::Vector2f himeStartPos, honestStartPos;
+    sf::Vector2f himeTargetPos, honestTargetPos;
 
     void processEvents();
     void update(float dt);
