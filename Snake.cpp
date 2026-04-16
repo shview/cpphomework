@@ -26,11 +26,12 @@ void Snake::reset() {
     isSlowing = false;
 }
 
-void Snake::takeDamage() {
-    health--;
+// 确保这里带有 int amount 参数，以匹配 Snake.h
+void Snake::takeDamage(int amount) {
+    health -= amount;
     isInvincible = true;
     invTimer = 1.0f;
-    bodyCount = std::max(2, bodyCount - 2);
+    bodyCount = 2;
 }
 
 bool Snake::update(float dt, sf::Vector2u winSize) {
@@ -113,7 +114,7 @@ bool Snake::update(float dt, sf::Vector2u winSize) {
             parseProgress = 0.f;
             bodyCount = 2;
             trail.clear();
-            return true; // 触发发射
+            return true;
         }
     }
     else {
@@ -139,7 +140,6 @@ void Snake::draw(sf::RenderWindow& window) {
             size_t idx = i * gap;
             if (idx < trail.size()) {
                 bodySprite->setPosition(trail[idx].position);
-                // 根据轨迹计算身体方向
                 if (idx + 1 < trail.size()) {
                     sf::Vector2f dir = trail[idx].position - trail[idx + 1].position;
                     float angle = std::atan2(dir.y, dir.x) * 180.f / 3.14159f;

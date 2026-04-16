@@ -13,6 +13,7 @@ void Boss::init(Difficulty diff, Level lvl, const sf::Font& font,
     patternTimer = 0.f;
     specialTimer = 0.f;
     bubbleTimer = 0.f;
+    targetAttackTimer = 0.f;
     currentPhase = 0;
 
     config = cfg;
@@ -20,9 +21,9 @@ void Boss::init(Difficulty diff, Level lvl, const sf::Font& font,
     basePosY = config.startPosY;
     pos = { basePosX, basePosY };
 
-    if (diff == Difficulty::Easy) maxHealth = 75.f;
-    else if (diff == Difficulty::Normal) maxHealth = 150.f;
-    else maxHealth = 250.f;
+    if (diff == Difficulty::Easy) maxHealth = 35.f;
+    else if (diff == Difficulty::Normal) maxHealth = 75.f;
+    else maxHealth = 125.f;
     health = maxHealth;
 
     bulletTexture01 = bulletTex01;
@@ -83,19 +84,14 @@ void Boss::updateSpriteRect() {
 }
 
 void Boss::takeDamage(float amount) {
-    if (state == BossState::Dying || state == BossState::Dead || state == BossState::Spawning || state == BossState::PhaseTransition) return;
+    if (state == BossState::Dying || state == BossState::Dead || state == BossState::Spawning || state == BossState::PhaseTransition || state == BossState::PhaseWait) return;
 
     health -= amount;
     if (health <= 0.f) {
         health = 0.f;
         if (currentPhase < 2) {
-            currentPhase++;
-            health = maxHealth;
-            state = BossState::PhaseTransition;
-            stateTimer = static_cast<float>(config.animCast.totalFrames) / config.animCast.fps;
-            bullets.clear();
+            state = BossState::PhaseWait;
             warnings.clear();
-            setAnimation(config.animCast);
         }
         else {
             state = BossState::Dying;
@@ -112,7 +108,17 @@ void Boss::takeDamage(float amount) {
     }
 }
 
-void Boss::spawnWarning(sf::Vector2f startPos, sf::Vector2f size, sf::Vector2f vel, float rot, float maxTime, int type) {
+void Boss::advancePhase() {
+    if (state == BossState::PhaseWait) {
+        currentPhase++;
+        health = maxHealth;
+        state = BossState::PhaseTransition;
+        stateTimer = static_cast<float>(config.animCast.totalFrames) / config.animCast.fps;
+        setAnimation(config.animCast);
+    }
+}
+
+void Boss::spawnWarning(sf::Vector2f startPos, sf::Vector2f size, sf::Vector2f vel, float rot, float maxTime, int type, bool attached) {
     WarningArea w;
     w.shape.setSize(size);
     w.shape.setOrigin({ size.x / 2.f, size.y / 2.f });
@@ -124,10 +130,11 @@ void Boss::spawnWarning(sf::Vector2f startPos, sf::Vector2f size, sf::Vector2f v
     w.startPos = startPos;
     w.velocity = vel;
     w.rotation = rot;
+    w.attachedToBoss = attached;
     warnings.push_back(w);
 }
 
-void Boss::update(float dt, Difficulty diff, Level lvl) {
+void Boss::update(float dt, Difficulty diff, Level lvl, sf::Vector2f playerPos, sf::Vector2f playerDir, sf::Vector2f playerBodyPos) {
     if (currentAnim.tex) {
         animTimer += dt;
         float frameTime = 1.0f / currentAnim.fps;
@@ -146,6 +153,11 @@ void Boss::update(float dt, Difficulty diff, Level lvl) {
         return;
     }
     if (state == BossState::Dead) return;
+
+    if (state == BossState::PhaseWait) {
+        updateBullets(dt);
+        return;
+    }
 
     if (state == BossState::Spawning || state == BossState::PhaseTransition) {
         stateTimer -= dt;
@@ -176,19 +188,15 @@ void Boss::update(float dt, Difficulty diff, Level lvl) {
         int topY = texSize.y - visibleH;
         heartFillSprite->setTextureRect(sf::IntRect({ 0, topY }, { static_cast<int>(texSize.x), visibleH }));
         heartFillSprite->setOrigin({ texSize.x / 2.0f, static_cast<float>(texSize.y / 2.0f - topY) });
-        pctText->setString(std::to_string(static_cast<int>(pct * 100)) + "%");
+        pctText->setString(std::to_string(static_cast<int>(health)) + " / " + std::to_string(static_cast<int>(maxHealth)));
         sf::FloatRect bounds = pctText->getLocalBounds();
         pctText->setOrigin({ bounds.size.x / 2.0f, bounds.size.y / 2.0f });
-        pctText->setPosition(pos);
+        pctText->setPosition({ pos.x, pos.y + 40.f });
     }
 
     patternTimer += dt;
-    if (lvl == Level::Level2) {
-        pos.x = basePosX + std::sin(patternTimer * 1.5f) * 200.f;
-    }
-    else {
-        pos.x = basePosX;
-    }
+    if (lvl == Level::Level2) pos.x = basePosX + std::sin(patternTimer * 1.5f) * 200.f;
+    else pos.x = basePosX;
     pos.y = basePosY;
 
     if (bgObjectSprite) bgObjectSprite->setPosition(pos);
@@ -202,9 +210,9 @@ void Boss::update(float dt, Difficulty diff, Level lvl) {
     if (fireTimer > baseFireRate) {
         fireTimer = 0.f;
         int attackMode = currentPhase;
-        if (currentPhase == 0) attackMode = 2; // 1->3
-        else if (currentPhase == 1) attackMode = 0; // 2->1
-        else if (currentPhase == 2) attackMode = 1; // 3->2
+        if (currentPhase == 0) attackMode = 2;
+        else if (currentPhase == 1) attackMode = 0;
+        else if (currentPhase == 2) attackMode = 1;
 
         int finalBullet = config.forceBulletType != -1 ? config.forceBulletType : 0;
 
@@ -231,23 +239,57 @@ void Boss::update(float dt, Difficulty diff, Level lvl) {
         specialTimer = 0.f;
         for (int i = 0; i < 3 + currentPhase; ++i) {
             float rx = 50.f + (std::rand() % 700);
-            spawnWarning({ rx, -50.f }, { 1500.f, 40.f }, { 0.f, 500.f }, 90.f, 1.5f, 0);
+            spawnWarning({ rx, -50.f }, { 1500.f, 40.f }, { 0.f, 500.f }, 90.f, 1.5f, 10);
         }
     }
     else if (config.bossId == 2 && specialTimer > 12.0f) {
         specialTimer = 0.f;
         bool fromLeft = (std::rand() % 2 == 0);
         float ry = 100.f + (std::rand() % 400);
-        if (fromLeft) spawnWarning({ -100.f, ry }, { 2000.f, 80.f }, { 600.f, 0.f }, 0.f, 1.5f, 1);
-        else spawnWarning({ 900.f, ry }, { 2000.f, 80.f }, { -600.f, 0.f }, 180.f, 1.5f, 1);
+        if (fromLeft) spawnWarning({ -100.f, ry }, { 2000.f, 80.f }, { 600.f, 0.f }, 0.f, 1.5f, 11);
+        else spawnWarning({ 900.f, ry }, { 2000.f, 80.f }, { -600.f, 0.f }, 180.f, 1.5f, 11);
+    }
+
+    targetAttackTimer += dt;
+    if (targetAttackTimer >= 12.0f) {
+        targetAttackTimer = 0.f;
+        int specialType = (config.bossId == 1) ? 10 : 11;
+
+        sf::Vector2f dirVec = (playerDir.x == 0.f && playerDir.y == 0.f) ? sf::Vector2f(1.f, 0.f) : playerDir;
+        sf::Vector2f targetFront = playerPos + dirVec * 200.f;
+        sf::Vector2f targetBehind = playerPos - dirVec * 150.f;
+        sf::Vector2f targetBody = playerBodyPos;
+
+        auto spawnAimedWarning = [&](sf::Vector2f target) {
+            sf::Vector2f dir = target - pos;
+            float dist = std::hypot(dir.x, dir.y);
+            if (dist > 0.1f) dir /= dist;
+            float rot = std::atan2(dir.y, dir.x) * 180.f / 3.14159f;
+            spawnWarning(pos, { 2500.f, 40.f }, dir * 650.f, rot, 1.5f, specialType, true);
+            };
+
+        spawnAimedWarning(targetFront);
+        spawnAimedWarning(targetBehind);
+        spawnAimedWarning(targetBody);
     }
 
     bubbleTimer += dt;
     if (bubbleTimer > 20.f) {
         bubbleTimer = 0.f;
         for (int i = 0; i < 2 + currentPhase; ++i) {
-            float ry = 50.f + (std::rand() % 500);
-            spawnWarning({ -50.f, ry }, { 2000.f, 40.f }, { 400.f, 0.f }, 0.f, 1.2f, 2);
+            int edge = std::rand() % 4;
+            sf::Vector2f startP, endP;
+            if (edge == 0) { startP = { -50.f, (float)(std::rand() % 600) }; endP = { 850.f, (float)(std::rand() % 600) }; }
+            else if (edge == 1) { startP = { 850.f, (float)(std::rand() % 600) }; endP = { -50.f, (float)(std::rand() % 600) }; }
+            else if (edge == 2) { startP = { (float)(std::rand() % 800), -50.f }; endP = { (float)(std::rand() % 800), 650.f }; }
+            else { startP = { (float)(std::rand() % 800), 650.f }; endP = { (float)(std::rand() % 800), -50.f }; }
+
+            sf::Vector2f dir = endP - startP;
+            float dist = std::hypot(dir.x, dir.y);
+            if (dist > 0.1f) dir /= dist;
+            float rot = std::atan2(dir.y, dir.x) * 180.f / 3.14159f;
+            // 【修改点】预警缩短到0.8s，速度加快到1800.f，泡泡变成极其可怕的瞬发攻击
+            spawnWarning(startP, { 2500.f, 40.f }, dir * 1800.f, rot, 0.8f, 12);
         }
     }
 
@@ -263,12 +305,17 @@ void Boss::updateBullets(float dt) {
     }
 
     for (auto it = warnings.begin(); it != warnings.end(); ) {
+        if (it->attachedToBoss) {
+            it->startPos = pos;
+            it->shape.setPosition(pos);
+        }
+
         it->timer += dt;
         if (it->timer >= it->maxTime) {
             const sf::Texture* tex = nullptr;
-            if (it->bulletType == 0) tex = config.texHonestSpecial;
-            else if (it->bulletType == 1) tex = config.texHimeSpecial;
-            else if (it->bulletType == 2) tex = config.texBubble;
+            if (it->bulletType == 10) tex = config.texHonestSpecial;
+            else if (it->bulletType == 11) tex = config.texHimeSpecial;
+            else if (it->bulletType == 12) tex = config.texBubble;
 
             if (tex) {
                 Bullet b(*tex, it->velocity, it->bulletType);
@@ -276,8 +323,7 @@ void Boss::updateBullets(float dt) {
                 b.sprite.setOrigin({ ts.x / 2.f, ts.y / 2.f });
                 b.sprite.setPosition(it->startPos);
 
-                // 【修改确认】仅在天降特攻预警线生成的 `BossHonest_Bullet.png` 上进行右转 90 度修复贴图
-                if (it->bulletType == 0) {
+                if (it->bulletType == 10 || it->bulletType == 11) {
                     b.sprite.setRotation(sf::degrees(it->rotation + 90.f));
                 }
                 else {
@@ -297,19 +343,16 @@ void Boss::fireBullet(float angleDeg, float speed, int bulletType) {
     const sf::Texture* currentTex = (bulletType == 0) ? bulletTexture01 : bulletTexture02;
     if (!currentTex) return;
     float angleRad = angleDeg * 3.14159f / 180.f;
-    Bullet b(*currentTex, { std::cos(angleRad) * speed, std::sin(angleRad) * speed });
+    Bullet b(*currentTex, { std::cos(angleRad) * speed, std::sin(angleRad) * speed }, bulletType);
     sf::Vector2u texSize = currentTex->getSize();
     b.sprite.setOrigin({ texSize.x / 2.0f, texSize.y / 2.0f });
     b.sprite.setPosition(pos);
-
-    // 【修改确认】普通弹幕恢复原始逻辑，不做额外旋转干预
     b.sprite.setRotation(sf::degrees(angleDeg));
-
     bullets.push_back(b);
 }
 
 void Boss::draw(sf::RenderWindow& window) {
-    if (state != BossState::Dead) {
+    if (state != BossState::Dead && state != BossState::PhaseWait) {
         if (bgObjectSprite) window.draw(*bgObjectSprite);
         if (bossSprite) window.draw(*bossSprite);
         if (state != BossState::Spawning && state != BossState::Dying) {

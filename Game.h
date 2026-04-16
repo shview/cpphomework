@@ -3,13 +3,46 @@
 #include "Snake.h"
 #include "Boss.h"
 
+// 【修改点】加入了特效光圈，透明度随时间消散
 struct DataPoint {
     sf::CircleShape shape;
-    DataPoint(sf::Vector2f pos) {
+    sf::CircleShape glow;
+    int type;
+    float timer;
+    float maxLifetime;
+    bool isFading;
+
+    DataPoint(sf::Vector2f pos, int t = 0) : type(t), timer(0.f), maxLifetime(10.f) {
         shape.setRadius(7.f);
-        shape.setFillColor(sf::Color::Cyan);
+        // type 2 为散落的橙色碎片
+        shape.setFillColor(t == 1 ? sf::Color::Green : (t == 2 ? sf::Color(255, 165, 0) : sf::Color::Cyan));
         shape.setOrigin({ 7.f, 7.f });
         shape.setPosition(pos);
+
+        glow.setRadius(12.f);
+        glow.setFillColor(sf::Color::Transparent);
+        glow.setOutlineColor(shape.getFillColor());
+        glow.setOutlineThickness(2.f);
+        glow.setOrigin({ 12.f, 12.f });
+        glow.setPosition(pos);
+
+        isFading = (t == 2);
+    }
+
+    void update(float dt) {
+        timer += dt;
+        sf::Color c = shape.getFillColor();
+        sf::Color gc = glow.getOutlineColor();
+        float alpha = 255.f;
+
+        if (isFading) {
+            alpha = std::max(0.f, 255.f * (1.f - timer / maxLifetime));
+            c.a = static_cast<std::uint8_t>(alpha);
+            shape.setFillColor(c);
+        }
+
+        // 光圈闪烁效果
+        gc.a = static_cast<std::uint8_t>(alpha * (0.3f + 0.7f * std::abs(std::sin(timer * 6.f))));        glow.setOutlineColor(gc);
     }
 };
 
@@ -65,11 +98,13 @@ private:
     sf::Font font;
     GameState state;
     GameStats stats;
+    GameFeelManager feelManager;
 
     Difficulty currentDiff;
     Level currentLevel;
     int menuSelection;
     int unlockedLevels;
+    int bgStyle; // 【新增】0:网格, 1:星空, 2:代码雨, 3:声波圈
 
     sf::Texture bulletTex01, bulletTex02;
     sf::Texture snakeHeadTex;
@@ -94,9 +129,9 @@ private:
     std::vector<SnakeProjectile> snakeProjectiles;
 
     float spawnTimer;
+    float healSpawnTimer;
     sf::Clock clock;
 
-    // --- 主页预览动画与双 Boss 换位变量 ---
     float honestPreviewTimer = 0.f;
     int honestPreviewFrame = 0;
     float himePreviewTimer = 0.f;

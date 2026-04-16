@@ -10,9 +10,10 @@ public:
     const int maxBody = 10;
     int gap = 5;
 
-    float normalSpeed = 260.f;
-    float slowSpeed = 90.f;
-    float dashSpeed = 1400.f;
+    // 【修改点】速度再次乘以 0.8 倍
+    float normalSpeed = 166.4f;
+    float slowSpeed = 57.6f;
+    float dashSpeed = 896.f;
 
     sf::Vector2f headPos;
     sf::Vector2f currentDir;
@@ -28,8 +29,8 @@ public:
     Snake();
     void initSprites(const sf::Texture& hTex, const sf::Texture& bTex);
     void reset();
-    void takeDamage();
-    // 返回是否完成解析（触发发射子弹）
+
+    void takeDamage(int amount = 1);
     bool update(float dt, sf::Vector2u winSize);
     void draw(sf::RenderWindow& window);
 };

@@ -3,7 +3,8 @@
 #include <vector>
 #include <optional>
 
-enum class BossState { Spawning, PhaseTransition, Normal, Hit, Dying, Dead };
+// 【修改点】增加 PhaseWait (阶段等待) 状态
+enum class BossState { Spawning, PhaseTransition, Normal, Hit, Dying, Dead, PhaseWait };
 
 struct Bullet {
     sf::Sprite sprite;
@@ -12,7 +13,6 @@ struct Bullet {
     Bullet(const sf::Texture& tex, sf::Vector2f vel, int t = 0) : sprite(tex), velocity(vel), type(t) {}
 };
 
-// 修正 4：恢复丢失的预警区和特攻所需变量
 struct WarningArea {
     sf::RectangleShape shape;
     float timer;
@@ -21,6 +21,7 @@ struct WarningArea {
     sf::Vector2f startPos;
     sf::Vector2f velocity;
     float rotation;
+    bool attachedToBoss = false;
 };
 
 struct BossConfig {
@@ -76,6 +77,7 @@ private:
     float patternTimer;
     float specialTimer;
     float bubbleTimer;
+    float targetAttackTimer;
 
     BossState state;
     float stateTimer;
@@ -86,7 +88,7 @@ private:
     void updateBullets(float dt);
     void setAnimation(const AnimInfo& info);
     void updateSpriteRect();
-    void spawnWarning(sf::Vector2f startPos, sf::Vector2f size, sf::Vector2f vel, float rot, float maxTime, int type);
+    void spawnWarning(sf::Vector2f startPos, sf::Vector2f size, sf::Vector2f vel, float rot, float maxTime, int type, bool attached = false);
 
 public:
     Boss();
@@ -95,9 +97,13 @@ public:
         const sf::Texture* bulletTex01, const sf::Texture* bulletTex02,
         const BossConfig& cfg);
 
-    void update(float dt, Difficulty diff, Level lvl);
+    void update(float dt, Difficulty diff, Level lvl, sf::Vector2f playerPos, sf::Vector2f playerDir, sf::Vector2f playerBodyPos);
     void fireBullet(float angleDeg, float speed, int bulletType);
     void draw(sf::RenderWindow& window);
+
+    // 【修改点】暴露 BossState 接口与进入下一阶段的方法
+    BossState getState() const { return state; }
+    void advancePhase();
 
     float getHealth() const { return health; }
     float getMaxHealth() const { return maxHealth; }
