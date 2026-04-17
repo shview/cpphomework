@@ -1,0 +1,10 @@
+﻿  Boss.cpp
+  Game.cpp
+  main.cpp
+LINK : warning LNK4075: 忽略“/INCREMENTAL”(由于“/LTCG”规范)
+  正在生成代码
+  32 of 1875 functions ( 1.7%) were compiled, the rest were copied from previous compilation.
+    2 functions were new in current compilation
+    8 functions had inline decision re-evaluated but remain unchanged
+  已完成代码的生成
+  homework.vcxproj -> C:\Users\s\Desktop\h1\homework\x64\Release\homework.exe

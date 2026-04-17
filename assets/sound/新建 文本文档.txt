@@ -1,0 +1,47 @@
+Algromith.wav Honest_Battle_MasterRevert.wav GerneralEventTypeA.wav --进入主界面播放第一个，进入关卡时随机播放其中一个，播放完随机播放另一个
+
+attack_3_loud.wav --解析发射子弹用
+
+battle_bossBlockHurt_2.wav --boss受击
+
+battle_dash_3.wav --角色冲刺音效
+
+battle_playerDeadBody_2.wav --角色受伤或数据断裂
+
+battle_playerDeadMain_2.wav --角色死亡
+
+bullet.wav --boss普通射击音效
+
+Element Click.wav --选择音效
+
+Navigation_Slide_05.wav --选项滑动音效
+
+battle_dashRestore_3.wav --泡泡攻击音效
+
+battle_feverTrigger_1.wav --扇子攻击音效
+
+bullet_anserLaser_action_1.wav--角色射击
+
+ui_limitWarning_serious.wav --释放冲击波
+
+battle_dottedline_1.wav --拾取数据点
+
+DM-CGS-04.wav --技能冷却中/能量不足
+
+scene_computerBi.wav --播放两次作为红线预警
+
+UI Click 8.wav --回血音效
+
+battle_bossDead00.wav --boss死亡
+
+bullet_selfPhotoTip_1.wav --瞄准音效
+
+Credit.wav --胜利结算
+
+DramaDanger.wav --失败结算
+
+Computation_Periodic_03.wav --解析音效
+
+Massive_City0530Mastering_LOOP.wav --低音背景音乐
+
+UI Click 13.wav --冲刺恢复
