@@ -1,9 +1,13 @@
 a cpphomework
 **work with Gemini**
 
+## **项目报告在游戏玩法介绍之后**
+
+
+
 # Last Command - Modded | 最后指令 - 改版
 
-这是一项基于 **C++** 和 **SFML 3.x** 开发的 2D 动作弹幕游戏（STG）。本项目深度融合了“贪吃蛇”的成长机制与“弹幕射击”的动作性，致敬并扩展了原作《Last Command》的核心体验。
+这是一项基于 **C++** 和 **SFML 3.x** 开发的 2D 动作弹幕游戏（STG）。本项目深度融合了“贪吃蛇”的成长机制与“弹幕射击”的动作性，致敬并模仿了原作《Last Command》的核心体验。
 
 ---
 
@@ -137,3 +141,158 @@ a cpphomework
 * `Max Length (最大长度)`：本局游戏曾达到过的最高体长记录。
 * `Damage Taken (受到伤害)`：蛇头或前两节躯干被击中导致扣血的总次数。
 * `Data Lost (数据丢失)`：被切断尾巴或受击掉血导致丢失的额外数据块**总和**，直观反映玩家的“走位战损”。
+
+
+# 高级语言程序设计大作业实验报告
+
+南开大学26C++
+
+---
+
+## 目录 
+1. [一. 作业题目](#一-作业题目) 
+2. [二. 开发软件](#二-开发软件) 
+3. [三. 课题要求](#三-课题要求) 
+4. [四. AI工具使用披露](#四-ai工具使用披露) 
+5. [五. 主要流程](#五-主要流程) 
+	- [1. 整体架构](#1-整体架构) 
+	- [2. 整体流程](#2-整体流程) 
+	- [3. 算法或公式](#3-算法或公式) 
+6. [六. 单元测试与调试](#六-单元测试与调试) 
+7. [七. 收获](#七-收获)
+
+---
+
+## 一. 作业题目
+**《最后指令 - 改版》 (Last Command - Modded) 2D 动作弹幕游戏**
+本项目是一款融合了“贪吃蛇”成长机制与“弹幕射击（STG）”动作性的 C++ 图形化程序 。在游玩原作[Steam 上的 最后指令](https://store.steampowered.com/app/1487270/_/)后想要试着简单模仿制作。
+玩家通过收集数据增长体长，利用“解析模式”消耗能量发起追踪攻击，挑战具有多阶段形态的强大 Boss。
+
+## 二. 开发软件
+* **开发语言**：C++ (标准 C++17/20) 
+* **图形化库**：SFML 3.0.2 (Simple and Fast Multimedia Library) 
+* **开发环境**：Visual Studio 2022
+
+## 三. 课题要求
+1.  **面向对象设计**：封装玩家（Snake）、敌人（Boss）及各类管理器，体现封装性与模块化。
+2.  **图形化交互**：实现完整的 60 FPS 游戏循环、帧动画渲染及 UI 菜单系统 。
+3.  **系统创新**：加入“屏幕穿梭”、“断尾求生”、“子弹时间”等创新机制 。
+
+## 四. AI工具使用披露
+* **AI 工具**：Gemini 3.1 Pro
+* **具体用途**：协助写代码，将玩法与想法交由AI写为代码
+* **使用位置**：整个项目
+
+## 五. 主要流程
+
+
+### 1. 整体架构
+```mermaid
+classDiagram
+    direction TB
+
+    class Game {
+        -sf::RenderWindow window
+        -GameState state
+        -Snake player
+        -Boss boss
+        -Boss boss2
+        -SoundManager soundManager
+        +Game()
+        +run() void
+        -processEvents() void
+        -update(float dt) void
+        -render() void
+        -startLevel() void
+    }
+
+    class Snake {
+        +std::deque~Pose~ trail
+        +int bodyCount
+        +int health
+        +float energy
+        +sf::Vector2f headPos
+        +update(float dt, sf::Vector2u winSize) int
+        +draw(sf::RenderWindow& window) void
+        +takeDamage(int amount) void
+    }
+
+    class Boss {
+        -float health
+        -float maxHealth
+        -int currentPhase
+        -BossState state
+        -std::vector~Bullet~ bullets
+        +init(...) void
+        +update(...) void
+        +draw(sf::RenderWindow& window) void
+        +takeDamage(float amount) void
+        +fireBullet(...) void
+    }
+
+    class SoundManager {
+        +std::unordered_map buffers
+        +sf::Music bgmMenu
+        +float bgmVolumeMulti
+        +float sfxVolumeMulti
+        +playSound(string name, float baseVol) void
+        +playBattleBGM(int style) void
+        +updateVolumes() void
+    }
+
+    class Bullet {
+        +sf::Sprite sprite
+        +sf::Vector2f velocity
+        +int type
+        +bool grazed
+    }
+
+    %% 定义类之间的组合与依赖关系
+    Game *-- Snake : 组合 (控制玩家实体)
+    Game *-- Boss : 组合 (管理敌方状态)
+    Game *-- SoundManager : 组合 (全局音频调度)
+    Boss *-- Bullet : 组合 (生成与管理弹幕)
+```
+
+### 2. 整体流程
+游戏采用状态机（GameState）驱动，通过 `Game` 类统筹全局生命周期：
+* **主菜单 (Menu)**：处理关卡、皮肤、设置的选择逻辑。
+* **战斗中 (Playing)**：
+    * **输入处理**：实时捕获上下左右移动，D 键解析，Q 键冲击波。
+    * **物理更新**：玩家轨迹计算（`std::deque`）、Boss 状态切换、子弹碰撞检测。
+    * **碰撞机制**：区分“核心判定区”与“身体判定区”。核心受击扣除 HP，身体受击触发“断尾”而不死。
+* **结算 (GameOver/Win)**：展示通关耗时、最大体长及“数据丢失”战损统计。
+
+### 3. 算法或公式
+
+**（1）解析伤害倍率公式**
+设消耗的额外数据量为 n (n = 体长 - 2)：
+* 当 n <= 3 时，单发伤害 D = n * 6。
+* 当 n > 3 时，单发伤害 D = n * 10。该设计鼓励玩家在躲避弹幕的同时保持超长体长以获取爆发输出。
+
+**（2）追踪子弹制导算法 (Homing Steering)**
+```cpp
+sf::Vector2f desired = target - pos;
+float dist = std::hypot(desired.x, desired.y);
+desired = (desired / dist) * 700.f;  // 期望速度
+sf::Vector2f steer = desired - vel;  // 转向力
+vel += steer * 4.0f * dt;            // 更新当前速度向量
+```
+
+**（3）Boss 平滑曲线移动 (Smoothstep)**
+在第三阶段矩形换位中，使用三次方平滑插值公式：
+Progress = t^2 * (3 - 2t)，其中 t 为时间进度系数。
+
+**（4）防重叠弹幕生成逻辑**
+在生成垂直水晶或急速泡泡时，通过 `std::vector` 记录已生成的原点坐标，配合 `while` 循环确保新弹幕与已有弹幕间距大于 80px。
+
+## 六. 单元测试与调试
+为了方便进行测试与调试，本项目开发了“上帝调试模式（作弊模式）”：
+* **F1 (Instant Kill)**：测试阶段转换动画是否平滑衔接 。
+* **F2 (Time Scale)**：将速度降至 0.25x，用于精确观察子弹穿过蛇身体时是否正确触发了断尾逻辑。
+
+## 七. 收获
+1.  学习如何使用AI辅助完成项目，如何写出正确的提示词。
+2.  学习如何构建一个小型项目，从先写一个较为详尽的需求文档到通过Git上传
+GitHub到发布Releases版本。
+3.  学习了C++的一些其他库的使用方法。
